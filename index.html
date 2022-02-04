@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+    <title>WebGL Triangle</title>
+
+
+    <script id="vertex-shader-normal" type="x-shader/x-vertex">
+#version 300 es
+
+    in vec3 vPosition;
+    out vec3 vPoint;
+
+    uniform mat4 modelViewMatrix;
+    uniform mat4 projectionMatrix;
+    uniform mat4 normalMatrix;
+
+    // uniform mat4 rollMatrix;
+    //uniform mat4 yawMatrix;
+    //uniform mat4 pitchMatrix;
+
+
+    vec4 brown = vec4(0.588, 0.294, 0, 1.0);
+    vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+    vec4 blue = vec4(0.0, 0.0, 1.0, 1.0);
+    vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
+    vec4 greyishWhite = vec4(0.8, 0.8, 0.8, 1.0);
+
+    vec4 map(float value, float min1, float max1, vec4 min2, vec4 max2) {
+      vec4 temp;
+      temp[0] = min2[0] + (value - min1) * (max2[0] - min2[0]) / (max1 - min1);
+      temp[1] = min2[1] + (value - min1) * (max2[1] - min2[1]) / (max1 - min1);
+      temp[2] = min2[2] + (value - min1) * (max2[2] - min2[2]) / (max1 - min1);
+      temp[3] = min2[3] + (value - min1) * (max2[3] - min2[3]) / (max1 - min1);
+      return temp;
+    }
+
+
+      void
+      main()
+      {
+          gl_PointSize = 3.0;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(vPosition, 1.0);
+          vPoint = vPosition;
+      }
+    </script>
+
+
+    <script id="vertex-shader-flat" type="x-shader/x-vertex">
+      #version 300 es
+
+          in vec3 vPosition;
+          in vec3 vNormal;
+
+          uniform float eye_z;
+
+          out vec3 normalInterp;
+          out vec3 vPoint;
+          out vec4 vWorldVert;
+          flat out vec4 color;
+
+          vec3 fColor;
+
+          uniform mat4 modelViewMatrix;
+          uniform mat4 projectionMatrix;
+          uniform mat3 normalMatrix;
+
+
+          //uniform mat4 rollMatrix;
+          //uniform mat4 yawMatrix;
+          //uniform mat4 pitchMatrix;
+
+
+
+          float Ka = 0.2;   // Ambient reflection coefficient
+          float Kd = 0.8;   // Diffuse reflection coefficient
+          float Ks = 0.05;   // Specular reflection coefficient
+          float shininessVal = 80.0;  // Shininess
+
+          vec3 ambientColor = vec3(1.0,1.0,0.749);
+          vec3 specularColor = vec3(1,1,1);
+          vec3 lightPos = vec3(-5,5,0);
+
+          vec4 brown = vec4(0.588, 0.294, 0, 1.0);
+          vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+          vec4 blue = vec4(0.0, 0.0, 1.0, 1.0);
+          vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
+          vec4 greyishWhite = vec4(0.8, 0.8, 0.8, 1.0);
+
+          vec4 map(float value, float min1, float max1, vec4 min2, vec4 max2) {
+            vec4 temp;
+            temp[0] = min2[0] + (value - min1) * (max2[0] - min2[0]) / (max1 - min1);
+            temp[1] = min2[1] + (value - min1) * (max2[1] - min2[1]) / (max1 - min1);
+            temp[2] = min2[2] + (value - min1) * (max2[2] - min2[2]) / (max1 - min1);
+            temp[3] = min2[3] + (value - min1) * (max2[3] - min2[3]) / (max1 - min1);
+            return temp;
+          }
+
+
+            void
+            main()
+            {
+                gl_PointSize = 3.0;
+                vec4 tempColor;
+                vec4 objColor;
+
+                if(vPosition.y < 0.0){
+                  objColor = blue;
+                }
+                else if(vPosition.y < 0.5 && vPosition.y >= 0.0){
+                  tempColor = map(vPosition.z, eye_z,  eye_z - 25.0, green, vec4(0.0, 0.0, 0.0, 1.0));
+                  objColor = map(vPosition.y, 0.0, 0.5, tempColor, brown);
+                }
+                else if(vPosition.y < 1.0 && vPosition.y >= 0.5){
+                  objColor = map(vPosition.y, 0.5,  1.0, brown, greyishWhite);
+                }
+                else if(vPosition.y >= 1.0){
+                  objColor = map(vPosition.y, 1.0,  2.0, greyishWhite, white);
+                }
+
+
+                fColor = vec3(objColor.x, objColor.y, objColor.z);
+
+                vec4 vert = modelViewMatrix * vec4(vPosition,1.0);
+                vPoint = vec3(vert) / vert.w;
+                normalInterp = normalMatrix * vNormal;
+
+                gl_Position = projectionMatrix * vert;
+
+                vec3 N = normalize(normalInterp);
+                vec3 L = normalize(lightPos - vPoint);
+
+                float lambertian = max(dot(N, L), 0.0);
+                float specular = 0.0;
+
+                if(lambertian > 0.0){
+                  vec3 R = reflect(-L, N);
+                  vec3 V = normalize(-vPoint);
+
+                  float specAngle = max(dot(R, V), 0.0);
+                  specular = pow(specAngle, shininessVal);
+                }
+
+                color = vec4(Ka * ambientColor +
+                            Kd * lambertian * fColor +
+                            Ks * specular * specularColor, 1.0);
+            }
+          </script>
+
+<script id="vertex-shader-smooth" type="x-shader/x-vertex">
+  #version 300 es
+
+      in vec3 vPosition;
+      in vec3 vNormal;
+
+      uniform float eye_z;
+
+      out vec3 normalInterp;
+      out vec3 vPoint;
+      out vec4 color;
+
+      vec3 fColor;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform mat3 normalMatrix;
+
+
+      //uniform mat4 rollMatrix;
+      //uniform mat4 yawMatrix;
+      //uniform mat4 pitchMatrix;
+
+      float Ka = 0.2;   // Ambient reflection coefficient
+      float Kd = 0.8;   // Diffuse reflection coefficient
+      float Ks = 0.05;   // Specular reflection coefficient
+      float shininessVal = 80.0;  // Shininess
+
+      vec3 ambientColor = vec3(1.0,1.0,0.749);
+      vec3 diffuseColor;
+      vec3 specularColor = vec3(1,1,1);
+      vec3 lightPos = vec3(-5,5,0);
+
+
+      vec4 brown = vec4(0.588, 0.294, 0, 1.0);
+      vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+      vec4 blue = vec4(0.0, 0.0, 1.0, 1.0);
+      vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
+      vec4 greyishWhite = vec4(0.8, 0.8, 0.8, 1.0);
+
+      vec4 map(float value, float min1, float max1, vec4 min2, vec4 max2) {
+        vec4 temp;
+        temp[0] = min2[0] + (value - min1) * (max2[0] - min2[0]) / (max1 - min1);
+        temp[1] = min2[1] + (value - min1) * (max2[1] - min2[1]) / (max1 - min1);
+        temp[2] = min2[2] + (value - min1) * (max2[2] - min2[2]) / (max1 - min1);
+        temp[3] = min2[3] + (value - min1) * (max2[3] - min2[3]) / (max1 - min1);
+        return temp;
+      }
+
+
+        void
+        main()
+        {
+            gl_PointSize = 3.0;
+            vec4 tempColor;
+            vec4 objColor;
+
+            if(vPosition.y < 0.0){
+              objColor = blue;
+            }
+            else if(vPosition.y < 0.5 && vPosition.y >= 0.0){
+              tempColor = map(vPosition.z, eye_z,  eye_z - 25.0, green, vec4(0.0, 0.0, 0.0, 1.0));
+              objColor = map(vPosition.y, 0.0, 0.5, tempColor, brown);
+
+            }
+            else if(vPosition.y < 1.0 && vPosition.y >= 0.5){
+              objColor = map(vPosition.y, 0.5,  1.0, brown, greyishWhite);
+            }
+            else if(vPosition.y >= 1.0){
+              objColor = map(vPosition.y, 1.0,  2.0, greyishWhite, white);
+            }
+
+
+            fColor = vec3(objColor);
+
+            vec4 vert =  modelViewMatrix * vec4(vPosition,1.0);
+            vPoint = vec3(vert) / vert.w;
+            normalInterp = normalMatrix * vNormal;
+
+            gl_Position = projectionMatrix * vert;
+
+            vec3 N = normalize(normalInterp);
+            vec3 L = normalize(lightPos - vPoint);
+
+            float lambertian = max(dot(N, L), 0.0);
+            float specular = 0.0;
+
+            if(lambertian > 0.0){
+              vec3 R = reflect(-L, N);
+              vec3 V = normalize(-vPoint);
+
+              float specAngle = max(dot(R, V), 0.0);
+              specular = pow(specAngle, shininessVal);
+            }
+
+            color = vec4(Ka * ambientColor +
+                        Kd * lambertian * fColor +
+                        Ks * specular * specularColor, 1.0);
+        }
+      </script>
+
+
+  <script id="vertex-shader-phong" type="x-shader/x-vertex">
+      #version 300 es
+      precision highp float;
+
+      in vec3 vPosition;
+      in vec3 vNormal;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform mat3 normalMatrix;
+
+      //uniform mat4 rollMatrix;
+      //uniform mat4 yawMatrix;
+      //uniform mat4 pitchMatrix;
+
+      out vec3 vPoint;
+      out vec3 vWorldVert;
+      out vec3 norm;
+
+
+
+        void
+        main()
+        {
+            gl_PointSize = 3.0;
+            vWorldVert = vec3(vPosition);
+            vec4 vert =  modelViewMatrix * vec4(vPosition.x, vPosition.y, vPosition.z, 1.0);
+            vPoint = vec3(vert) / vert.w;
+            norm = normalMatrix * vNormal;
+            gl_Position = projectionMatrix * vert;
+        }
+
+
+    </script>
+
+          <script id="fragment-shader-normal" type="x-shader/x-fragment">
+#version 300 es
+      precision highp float;
+
+
+      in vec3 vPoint;
+      out vec4 fragColor;
+      uniform float eye_z;
+
+      vec4 brown = vec4(0.588, 0.294, 0, 1.0);
+      vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+      vec4 blue = vec4(0.0, 0.0, 1.0, 1.0);
+      vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
+      vec4 greyishWhite = vec4(0.8, 0.8, 0.8, 1.0);
+
+      vec4 map(float value, float min1, float max1, vec4 min2, vec4 max2) {
+        vec4 temp;
+        temp[0] = min2[0] + (value - min1) * (max2[0] - min2[0]) / (max1 - min1);
+        temp[1] = min2[1] + (value - min1) * (max2[1] - min2[1]) / (max1 - min1);
+        temp[2] = min2[2] + (value - min1) * (max2[2] - min2[2]) / (max1 - min1);
+        temp[3] = min2[3] + (value - min1) * (max2[3] - min2[3]) / (max1 - min1);
+        return temp;
+      }
+
+      void
+      main()
+      {
+
+        vec4 fColor;
+        vec4 tempColor;
+
+          if(vPoint.y < 0.0){
+            fColor = blue;
+          }
+          else if(vPoint.y < 0.5 && vPoint.y >= 0.0){
+            tempColor = map(vPoint.z, eye_z,  eye_z - 25.0, green, vec4(0.0, 0.0, 0.0, 1.0));
+            fColor = map(vPoint.y, 0.0, 0.5, tempColor, brown);
+
+          }
+          else if(vPoint.y < 1.0 && vPoint.y >= 0.5){
+            fColor = map(vPoint.y, 0.5,  1.0, brown, greyishWhite);
+          }
+          else if(vPoint.y >= 1.0){
+            fColor = map(vPoint.y, 1.0,  2.0, greyishWhite, white);
+          }
+
+	      fragColor = fColor;
+      }
+    </script>
+
+<script id="fragment-shader-flat" type="x-shader/x-fragment">
+  #version 300 es
+  precision highp float;
+
+  flat in vec4 color;
+  out vec4 fragColor;
+
+
+  void
+  main()
+  {
+    fragColor = color;
+  }
+</script>
+      </script>
+
+    <script id="fragment-shader-smooth" type="x-shader/x-fragment">
+      #version 300 es
+            precision highp float;
+
+            in vec4 color;
+            out vec4 fragColor;
+
+
+            void
+            main()
+            {
+              fragColor = color;
+            }
+          </script>
+
+    <script id="fragment-shader-phong" type="x-shader/x-fragment">
+      #version 300 es
+            precision mediump float;
+
+            in vec3 vPoint;
+            in vec3 norm;
+            in vec3 vWorldVert;
+            out vec4 fragColor;
+
+            uniform float eye_z;
+
+            float Ka = 0.2;   // Ambient reflection coefficient
+            float Kd = 0.8;   // Diffuse reflection coefficient
+            float Ks = 0.05;   // Specular reflection coefficient
+            float shininessVal = 80.0;  // Shininess
+
+            vec3 ambientColor = vec3(1.0,1.0,0.749);
+            vec3 diffuseColor;
+            vec3 specularColor = vec3(1,1,1);
+            vec3 lightPos = vec3(-5,5,0);
+
+            vec3 fColor;
+
+
+
+            vec4 brown = vec4(0.588, 0.294, 0, 1.0);
+            vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+            vec4 blue = vec4(0.0, 0.0, 1.0, 1.0);
+            vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
+            vec4 greyishWhite = vec4(0.8, 0.8, 0.8, 1.0);
+
+            vec4 map(float value, float min1, float max1, vec4 min2, vec4 max2) {
+              vec4 temp;
+              temp[0] = min2[0] + (value - min1) * (max2[0] - min2[0]) / (max1 - min1);
+              temp[1] = min2[1] + (value - min1) * (max2[1] - min2[1]) / (max1 - min1);
+              temp[2] = min2[2] + (value - min1) * (max2[2] - min2[2]) / (max1 - min1);
+              temp[3] = min2[3] + (value - min1) * (max2[3] - min2[3]) / (max1 - min1);
+              return temp;
+            }
+
+            void
+            main()
+            {
+
+              vec4 tempColor;
+              vec4 objColor;
+
+              if(vWorldVert[1] < 0.0){
+                objColor = blue;
+              }
+              else if(vWorldVert[1] < 0.5 && vWorldVert[1] >= 0.0){
+                tempColor = map(vWorldVert[2], eye_z,  eye_z - 25.0, green, vec4(0.0, 0.0, 0.0, 1.0));
+                objColor = map(vWorldVert[1], 0.0, 0.5, tempColor, brown);
+
+              }
+              else if(vWorldVert[1] < 1.0 && vWorldVert[1] >= 0.5){
+                objColor = map(vWorldVert[1], 0.5,  1.0, brown, greyishWhite);
+              }
+              else if(vWorldVert[1] >= 1.0){
+                objColor = map(vWorldVert[1], 1.0,  2.0, greyishWhite, white);
+              }
+
+
+              fColor = vec3(objColor.x, objColor.y, objColor.z);
+
+
+              vec3 N = normalize(norm);
+              vec3 L = normalize(lightPos - vPoint);
+
+              float lambertian = max(dot(N, L), 0.0);
+              float specular = 0.0;
+              if(lambertian > 0.0) {
+                vec3 R = reflect(-L, N);      // Reflected light vector
+                vec3 V = normalize(-vPoint); // Vector to viewer
+
+                float specAngle = max(dot(R, V), 0.0);
+                specular = pow(specAngle, shininessVal);
+              }
+
+
+              fragColor = vec4(Ka * ambientColor +
+                      Kd * lambertian * fColor +
+                      Ks * specular * specularColor, 1.0);
+
+            }
+    </script>
+
+    <script src="http://interactivecomputergraphics.com/8E/Code%20update/Common/initShadersES6.js"></script>
+    <script src="MVES6.js"></script>
+    <script src="helpers.js"></script>
+    <script src="perlin.js"></script>
+    <script type="text/javascript" src="simulator.js"></script>
+  </head>
+
+  <body>
+    <div style="width:520px;margin: 0 auto;" id="canvas_div">
+        <canvas id="gl-canvas" width="520" height="520" >
+          Oops ... your browser doesn't support the HTML5 canvas element
+        </canvas>
+    </div>
+
+
+    <h3>Welcome to our flight simulator! </h3>
+    <p>Use the following keymap! You can find the present values of the variables at the end of the page! </p>
+    <ul>
+      <li>
+        1 to decrease left and shift+1 (! key) to increase left!
+      </li>
+      <li>
+        2 to decrease right and shift+2 (@  key) to increase right!
+      </li>
+      <li>
+        3 to decrease top and shift+3 (# key) to increase top!
+      </li>
+      <li>
+        4 to decrease bottom and shift+4 ($ key) to increase bottom!
+      </li>
+      <li>
+        5 to decrease near and shift+5 (% key) to increase near!
+      </li>
+
+      <li>
+        6 to decrease far and shift+6 (^ key) to increase far!
+      </li>
+
+      <li>
+        Q (or q) or E (or e) to change roll axis!
+      </li>
+
+
+      <li>
+        A (or a) or D (or d) to change pitch axis!
+      </li>
+
+      <li>
+        W (or w) or S (or s) to change yaw axis!
+      </li>
+
+      <li>
+        T (or t) to increase speed and Y (or y) to change yaw axis!
+      </li>
+
+      <li>
+        Esc to quit simulation and remove it!
+      </li>
+
+    </ul>
+
+    <div>
+      <div id = "button-left">
+        <p id ="left-value"></p>
+      </div>
+
+      <div id = "button-right">
+        <p id ="right-value"></p>
+      </div>
+
+      <div id = "button-top">
+        <p id ="top-value"></p>
+      </div>
+
+      <div id = "button-bottom">
+        <p id ="bottom-value"></p>
+      </div>
+
+      <div id = "button-near">
+        <p id ="near-value"></p>
+      </div>
+
+      <div id = "button-far">
+        <p id ="far-value"></p>
+      </div>
+
+      <div id = "button-speed">
+        <p id ="speed-value"></p>
+      </div>
+    </div>
+  </body>
+</html>
